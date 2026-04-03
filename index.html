@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chamber of Tides</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-deep: #061e1e;
+    --bg-mid: #0a2a2a;
+    --bg-light: #1a4a4a;
+    --text: #c8e6e6;
+    --text-dim: #5a8a8a;
+    --accent: #54d4ff;
+    --panel-bg: rgba(8, 32, 32, 0.85);
+    --border: rgba(84, 212, 255, 0.15);
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--accent);
+  }
+  .round-display {
+    font-size: 1.1rem;
+    color: var(--text-dim);
+  }
+  .round-display span {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1.3rem;
+  }
+
+  /* Main layout */
+  .main {
+    display: flex;
+    height: calc(100vh - 49px);
+  }
+
+  /* Chamber area */
+  .chamber-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, #0f3535 0%, #091e1e 70%, #050f0f 100%);
+  }
+
+  /* Caustic light overlay */
+  .chamber-area::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 300px 200px at 30% 40%, rgba(84, 212, 255, 0.04) 0%, transparent 70%),
+      radial-gradient(ellipse 250px 300px at 70% 60%, rgba(84, 255, 204, 0.03) 0%, transparent 70%),
+      radial-gradient(ellipse 200px 250px at 50% 30%, rgba(255, 107, 157, 0.02) 0%, transparent 70%);
+    animation: caustics 8s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes caustics {
+    0% { opacity: 0.6; transform: scale(1) translate(0, 0); }
+    50% { opacity: 1; transform: scale(1.05) translate(10px, -10px); }
+    100% { opacity: 0.7; transform: scale(0.98) translate(-5px, 5px); }
+  }
+
+  /* Chamber circle */
+  .chamber {
+    position: relative;
+    width: min(75vh, 650px);
+    height: min(75vh, 650px);
+    border-radius: 50%;
+    background: radial-gradient(circle, #12383a 0%, #0b2828 50%, #071c1c 100%);
+    border: 2px solid rgba(84, 212, 255, 0.12);
+    box-shadow:
+      0 0 60px rgba(84, 212, 255, 0.08),
+      inset 0 0 80px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Symbols */
+  .symbol {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: all 0.4s ease;
+    cursor: pointer;
+    user-select: none;
+    z-index: 2;
+  }
+  .symbol.inactive {
+    opacity: 0.13;
+    filter: saturate(0) brightness(0.5);
+    transform: translate(-50%, -50%) scale(0.75);
+  }
+  .symbol.active {
+    opacity: 1;
+    filter: saturate(1) brightness(1);
+    transform: translate(-50%, -50%) scale(1.2);
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+  .symbol.matched {
+    outline: 2px solid #7dff54;
+    outline-offset: 3px;
+    animation: glow-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 4px currentColor); }
+    50% { filter: brightness(1.3) drop-shadow(0 0 12px currentColor); }
+  }
+
+  /* Player tokens */
+  .player-token {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: #fff;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    transition: left 0.3s ease, top 0.3s ease;
+    pointer-events: none;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .section-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  /* Buttons */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: rgba(84, 212, 255, 0.08);
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    text-align: left;
+  }
+  .btn:hover { background: rgba(84, 212, 255, 0.18); border-color: rgba(84, 212, 255, 0.4); }
+  .btn:active { background: rgba(84, 212, 255, 0.25); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-primary {
+    background: rgba(84, 212, 255, 0.2);
+    border-color: rgba(84, 212, 255, 0.4);
+    font-weight: 600;
+  }
+
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; text-align: center; }
+
+  /* Player cards */
+  .player-card {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .player-card:hover { background: rgba(84, 212, 255, 0.06); }
+  .player-card.selected {
+    background: rgba(84, 212, 255, 0.12);
+    border-color: rgba(84, 212, 255, 0.5);
+  }
+  .player-card .player-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .player-card .player-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    flex-shrink: 0;
+  }
+  .player-card .player-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .player-card .player-items {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  /* Item chips */
+  .item-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .item-chip:hover { background: rgba(255,255,255,0.12); }
+  .item-chip.on-player { border-color: rgba(84, 212, 255, 0.4); background: rgba(84, 212, 255, 0.1); }
+
+  /* Legend */
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    padding: 2px 0;
+  }
+  .legend-glyph {
+    width: 22px;
+    text-align: center;
+    font-size: 1rem;
+  }
+  .legend-count {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+
+  /* Item assignment area */
+  .unassigned-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* Tooltip */
+  .symbol-tooltip {
+    position: fixed;
+    padding: 4px 10px;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Chamber of Tides</h1>
+  <div class="round-display">Round <span id="roundNum">0</span></div>
+</div>
+
+<div class="main">
+  <div class="chamber-area">
+    <div class="chamber" id="chamber"></div>
+  </div>
+
+  <div class="sidebar">
+    <div>
+      <div class="section-title">Controls</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn btn-primary" id="btnNextRound">Next Round</button>
+        <div class="btn-row">
+          <button class="btn" id="btnUndo" disabled>Undo</button>
+          <button class="btn" id="btnNewGame">New Game</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Players <span style="font-size:0.65rem;opacity:0.6;">(click to select, then click chamber to move)</span></div>
+      <div id="playerList" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <div>
+      <div class="section-title">Unassigned Items <span style="font-size:0.65rem;opacity:0.6;">(click to give to selected player)</span></div>
+      <div class="unassigned-items" id="unassignedItems"></div>
+    </div>
+
+    <div>
+      <div class="section-title">Legend</div>
+      <div id="legend"></div>
+    </div>
+  </div>
+</div>
+
+<div class="symbol-tooltip" id="tooltip"></div>
+
+<script>
+// === Config ===
+const SYMBOL_TYPES = [
+  { glyph: '✿', name: 'Anemone',   color: '#ff6b9d' },
+  { glyph: '★', name: 'Starfish',  color: '#ffa654' },
+  { glyph: '◆', name: 'Crystal',   color: '#54d4ff' },
+  { glyph: '▲', name: 'Fin',       color: '#7dff54' },
+  { glyph: '●', name: 'Pearl',     color: '#e8e8ff' },
+  { glyph: '⬟', name: 'Shell',     color: '#ffde54' },
+  { glyph: '✦', name: 'Urchin',    color: '#d154ff' },
+  { glyph: '⚡', name: 'Eel',       color: '#54ffcc' },
+  { glyph: '☽', name: 'Moonjelly', color: '#8899ff' },
+];
+
+const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
+const PLAYER_NAMES = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+const RINGS = 9;
+const SLOTS = 9;
+const ACTIVE_PER_TYPE = 2;
+
+// === State ===
+let state = null;
+let selectedPlayerId = null;
+
+// === Utility ===
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function deepCopy(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+// === Symbol Positioning ===
+function computePosition(ring, slot, chamberSize) {
+  const cx = chamberSize / 2;
+  const cy = chamberSize / 2;
+  const minR = chamberSize * 0.06;
+  const maxR = chamberSize * 0.45;
+  const ringRadius = minR + (maxR - minR) * (ring / (RINGS - 1));
+  const angleOffset = (ring % 2) * 20;
+  const angleDeg = slot * (360 / SLOTS) + angleOffset;
+  const angleRad = angleDeg * Math.PI / 180;
+  return {
+    x: cx + ringRadius * Math.cos(angleRad),
+    y: cy + ringRadius * Math.sin(angleRad),
+  };
+}
+
+// === State Creation ===
+function createNewGame() {
+  const symbols = [];
+  let id = 0;
+  for (let ring = 0; ring < RINGS; ring++) {
+    const typeOrder = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    for (let slot = 0; slot < SLOTS; slot++) {
+      symbols.push({ id: id++, type: typeOrder[slot], ring, slot });
+    }
+  }
+
+  const players = PLAYER_NAMES.map((name, i) => ({
+    id: i,
+    name,
+    color: PLAYER_COLORS[i],
+    ring: Math.floor(RINGS / 2),
+    slot: i * 2,
+    items: [],
+  }));
+
+  state = {
+    round: 0,
+    symbols,
+    activeSymbols: generateActiveSymbols(symbols),
+    players,
+    history: [],
+  };
+
+  selectedPlayerId = null;
+  saveState();
+  render();
+}
+
+function generateActiveSymbols(symbols) {
+  const active = {};
+  for (let type = 0; type < 9; type++) {
+    const ofType = symbols.filter(s => s.type === type);
+    const picked = shuffle(ofType).slice(0, ACTIVE_PER_TYPE);
+    active[type] = picked.map(s => s.id);
+  }
+  return active;
+}
+
+// === Actions ===
+function nextRound() {
+  state.history.push({
+    round: state.round,
+    activeSymbols: deepCopy(state.activeSymbols),
+    players: deepCopy(state.players),
+  });
+  state.round++;
+  state.activeSymbols = generateActiveSymbols(state.symbols);
+  saveState();
+  render();
+}
+
+function undo() {
+  if (state.history.length === 0) return;
+  const prev = state.history.pop();
+  state.round = prev.round;
+  state.activeSymbols = prev.activeSymbols;
+  state.players = prev.players;
+  saveState();
+  render();
+}
+
+function movePlayer(playerId, ring, slot) {
+  const p = state.players[playerId];
+  p.ring = ring;
+  p.slot = slot;
+  saveState();
+  render();
+}
+
+function assignItem(typeIndex, playerId) {
+  // Remove from any current holder
+  state.players.forEach(p => {
+    p.items = p.items.filter(i => i !== typeIndex);
+  });
+  if (playerId !== null) {
+    state.players[playerId].items.push(typeIndex);
+    state.players[playerId].items.sort((a, b) => a - b);
+  }
+  saveState();
+  render();
+}
+
+// === Persistence ===
+function saveState() {
+  try {
+    localStorage.setItem('chamberOfTides', JSON.stringify(state));
+  } catch (e) { /* silently fail */ }
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('chamberOfTides');
+    if (saved) {
+      state = JSON.parse(saved);
+      return true;
+    }
+  } catch (e) { /* fall through */ }
+  return false;
+}
+
+// === Active set helpers ===
+function isActive(symbolId) {
+  for (const ids of Object.values(state.activeSymbols)) {
+    if (ids.includes(symbolId)) return true;
+  }
+  return false;
+}
+
+function playerAtPosition(ring, slot) {
+  return state.players.find(p => p.ring === ring && p.slot === slot);
+}
+
+function isMatched(symbol) {
+  if (!isActive(symbol.id)) return false;
+  const player = playerAtPosition(symbol.ring, symbol.slot);
+  return player && player.items.includes(symbol.type);
+}
+
+// === Rendering ===
+function render() {
+  const chamber = document.getElementById('chamber');
+  const chamberSize = chamber.offsetWidth;
+  chamber.innerHTML = '';
+
+  // Render symbols
+  state.symbols.forEach(sym => {
+    const pos = computePosition(sym.ring, sym.slot, chamberSize);
+    const el = document.createElement('span');
+    el.className = 'symbol';
+    const active = isActive(sym.id);
+    const matched = isMatched(sym);
+    el.classList.add(active ? 'active' : 'inactive');
+    if (matched) el.classList.add('matched');
+    el.textContent = SYMBOL_TYPES[sym.type].glyph;
+    el.style.left = pos.x + 'px';
+    el.style.top = pos.y + 'px';
+    el.style.color = SYMBOL_TYPES[sym.type].color;
+    if (active) {
+      el.style.textShadow = `0 0 8px ${SYMBOL_TYPES[sym.type].color}`;
+    }
+
+    // Click to move selected player here
+    el.addEventListener('click', () => {
+      if (selectedPlayerId !== null) {
+        movePlayer(selectedPlayerId, sym.ring, sym.slot);
+      }
+    });
+
+    // Tooltip
+    el.addEventListener('mouseenter', (e) => {
+      const tooltip = document.getElementById('tooltip');
+      tooltip.textContent = `${SYMBOL_TYPES[sym.type].name} (Ring ${sym.ring + 1}, Slot ${sym.slot + 1})${active ? ' — ACTIVE' : ''}`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY - 8) + 'px';
+    });
+    el.addEventListener('mousemove', (e) => {
+      const tooltip = document.getElementById('tooltip');
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY - 8) + 'px';
+    });
+    el.addEventListener('mouseleave', () => {
+      document.getElementById('tooltip').style.display = 'none';
+    });
+
+    chamber.appendChild(el);
+  });
+
+  // Render player tokens
+  state.players.forEach(p => {
+    const pos = computePosition(p.ring, p.slot, chamberSize);
+    const el = document.createElement('div');
+    el.className = 'player-token';
+    el.textContent = (p.id + 1);
+    el.style.backgroundColor = p.color;
+    el.style.left = pos.x + 'px';
+    el.style.top = pos.y + 'px';
+    el.style.boxShadow = `0 0 8px ${p.color}88`;
+    // Offset slightly so multiple players at same position don't fully overlap
+    const offset = state.players.filter(pp => pp.ring === p.ring && pp.slot === p.slot && pp.id < p.id).length;
+    if (offset > 0) {
+      el.style.transform = `translate(calc(-50% + ${offset * 14}px), calc(-50% - 14px))`;
+    }
+    chamber.appendChild(el);
+  });
+
+  // Round display
+  document.getElementById('roundNum').textContent = state.round;
+  document.getElementById('btnUndo').disabled = state.history.length === 0;
+
+  // Player list
+  renderPlayerList();
+  // Unassigned items
+  renderUnassignedItems();
+  // Legend
+  renderLegend();
+}
+
+function renderPlayerList() {
+  const container = document.getElementById('playerList');
+  container.innerHTML = '';
+  state.players.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'player-card' + (selectedPlayerId === p.id ? ' selected' : '');
+    card.addEventListener('click', () => {
+      selectedPlayerId = selectedPlayerId === p.id ? null : p.id;
+      renderPlayerList();
+    });
+
+    const header = document.createElement('div');
+    header.className = 'player-header';
+    const dot = document.createElement('div');
+    dot.className = 'player-dot';
+    dot.style.backgroundColor = p.color;
+    const name = document.createElement('span');
+    name.className = 'player-name';
+    name.textContent = p.name;
+    header.appendChild(dot);
+    header.appendChild(name);
+    card.appendChild(header);
+
+    if (p.items.length > 0) {
+      const items = document.createElement('div');
+      items.className = 'player-items';
+      p.items.forEach(typeIdx => {
+        const chip = document.createElement('span');
+        chip.className = 'item-chip on-player';
+        chip.style.color = SYMBOL_TYPES[typeIdx].color;
+        chip.textContent = SYMBOL_TYPES[typeIdx].glyph + ' ' + SYMBOL_TYPES[typeIdx].name;
+        chip.title = 'Click to unassign';
+        chip.addEventListener('click', (e) => {
+          e.stopPropagation();
+          assignItem(typeIdx, null);
+        });
+        items.appendChild(chip);
+      });
+      card.appendChild(items);
+    }
+
+    container.appendChild(card);
+  });
+}
+
+function renderUnassignedItems() {
+  const container = document.getElementById('unassignedItems');
+  container.innerHTML = '';
+  const assigned = new Set(state.players.flatMap(p => p.items));
+  SYMBOL_TYPES.forEach((st, idx) => {
+    if (assigned.has(idx)) return;
+    const chip = document.createElement('span');
+    chip.className = 'item-chip';
+    chip.style.color = st.color;
+    chip.textContent = st.glyph + ' ' + st.name;
+    chip.title = selectedPlayerId !== null
+      ? `Click to give to ${state.players[selectedPlayerId].name}`
+      : 'Select a player first';
+    chip.addEventListener('click', () => {
+      if (selectedPlayerId !== null) {
+        assignItem(idx, selectedPlayerId);
+      }
+    });
+    container.appendChild(chip);
+  });
+  if (!assigned.size || assigned.size < 9) {
+    // show hint if no player selected
+  }
+}
+
+function renderLegend() {
+  const container = document.getElementById('legend');
+  container.innerHTML = '';
+  SYMBOL_TYPES.forEach((st, idx) => {
+    const row = document.createElement('div');
+    row.className = 'legend-item';
+    const glyph = document.createElement('span');
+    glyph.className = 'legend-glyph';
+    glyph.textContent = st.glyph;
+    glyph.style.color = st.color;
+    const name = document.createElement('span');
+    name.textContent = st.name;
+    const count = document.createElement('span');
+    count.className = 'legend-count';
+    const activeCount = (state.activeSymbols[idx] || []).length;
+    count.textContent = `${activeCount} active`;
+    row.appendChild(glyph);
+    row.appendChild(name);
+    row.appendChild(count);
+    container.appendChild(row);
+  });
+}
+
+// === Event Handlers ===
+document.getElementById('btnNextRound').addEventListener('click', nextRound);
+document.getElementById('btnUndo').addEventListener('click', undo);
+document.getElementById('btnNewGame').addEventListener('click', () => {
+  if (state.round > 0 && !confirm('Start a new game? Current progress will be lost.')) return;
+  createNewGame();
+});
+
+// Re-render on resize
+window.addEventListener('resize', () => {
+  if (state) render();
+});
+
+// === Init ===
+if (!loadState()) {
+  createNewGame();
+} else {
+  render();
+}
+</script>
+</body>
+</html>
