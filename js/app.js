@@ -96,6 +96,7 @@ function createNewGame() {
   };
 
   selectedPlayerId = null;
+  document.getElementById('ritualOverlay').classList.remove('visible');
   saveState();
   render();
 }
@@ -141,12 +142,18 @@ function undo() {
   state.players = prev.players;
   state.completedSymbols = prev.completedSymbols;
   state.removedItems = prev.removedItems;
+  state.ritualComplete = prev.ritualComplete || false;
+  document.getElementById('ritualOverlay').classList.remove('visible');
   saveState();
   render();
 }
 
 function advancePhase() {
-  if (state.phase >= MAX_PHASES) return;
+  // Final phase: complete the ritual
+  if (state.phase >= MAX_PHASES) {
+    completeRitual();
+    return;
+  }
   state.history.push({
     round: state.round,
     phase: state.phase,
@@ -177,6 +184,30 @@ function advancePhase() {
   state.activeSymbols = generateActiveSymbols(state.symbols, state.phase);
   saveState();
   render();
+}
+
+function completeRitual() {
+  // Mark final phase matched symbols as completed
+  state.history.push({
+    round: state.round,
+    phase: state.phase,
+    activeSymbols: deepCopy(state.activeSymbols),
+    players: deepCopy(state.players),
+    completedSymbols: [...state.completedSymbols],
+    removedItems: [...state.removedItems],
+    ritualComplete: state.ritualComplete || false,
+  });
+
+  state.symbols.forEach(sym => {
+    if (isActive(sym.id) && isMatched(sym)) {
+      state.completedSymbols.push(sym.id);
+    }
+  });
+
+  state.ritualComplete = true;
+  saveState();
+  render();
+  document.getElementById('ritualOverlay').classList.add('visible');
 }
 
 function movePlayer(playerId, ring, slot) {
@@ -230,6 +261,21 @@ function isUnlocked(symbolType) {
 
 function isCompleted(symbolId) {
   return state.completedSymbols.includes(symbolId);
+}
+
+function isPhaseComplete() {
+  const minType = (state.phase - 1) * TYPES_PER_PHASE;
+  const maxType = state.phase * TYPES_PER_PHASE;
+  for (let type = minType; type < maxType; type++) {
+    const activeIds = state.activeSymbols[type] || [];
+    const matched = activeIds.some(id => {
+      const sym = state.symbols[id];
+      const player = playerAtPosition(sym.ring, sym.slot);
+      return player && player.items.includes(sym.type);
+    });
+    if (!matched) return false;
+  }
+  return true;
 }
 
 function isActive(symbolId) {
@@ -332,7 +378,16 @@ function render() {
   document.getElementById('roundNum').textContent = state.round;
   document.getElementById('phaseNum').textContent = state.phase;
   document.getElementById('btnUndo').disabled = state.history.length === 0;
-  document.getElementById('btnAdvancePhase').disabled = state.phase >= MAX_PHASES;
+
+  const advanceBtn = document.getElementById('btnAdvancePhase');
+  const phaseComplete = isPhaseComplete();
+  if (state.phase >= MAX_PHASES) {
+    advanceBtn.textContent = 'Ritual beenden';
+    advanceBtn.disabled = state.ritualComplete || !phaseComplete;
+  } else {
+    advanceBtn.textContent = 'Ritualphase voranschreiten';
+    advanceBtn.disabled = !phaseComplete;
+  }
 
   // Player list
   renderPlayerList();
@@ -545,4 +600,7 @@ if (!loadState()) {
   createNewGame();
 } else {
   render();
+  if (state.ritualComplete) {
+    document.getElementById('ritualOverlay').classList.add('visible');
+  }
 }

@@ -231,6 +231,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  z-index: 201;
+  position: relative;
 }
 
 .section-title {
@@ -345,6 +347,40 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+/* Ritual complete overlay */
+.ritual-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 30, 30, 0.6);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+.ritual-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ritual-message {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #7dff54;
+  text-shadow:
+    0 0 20px rgba(125, 255, 84, 0.6),
+    0 0 60px rgba(125, 255, 84, 0.3),
+    0 0 100px rgba(125, 255, 84, 0.15);
+  letter-spacing: 4px;
+  animation: ritual-glow 2s ease-in-out infinite alternate;
+}
+@keyframes ritual-glow {
+  0% { text-shadow: 0 0 20px rgba(125, 255, 84, 0.6), 0 0 60px rgba(125, 255, 84, 0.3); }
+  100% { text-shadow: 0 0 30px rgba(125, 255, 84, 0.8), 0 0 80px rgba(125, 255, 84, 0.5), 0 0 120px rgba(125, 255, 84, 0.2); }
 }
 
 /* Tooltip */
