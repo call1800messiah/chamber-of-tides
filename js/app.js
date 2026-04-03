@@ -1,18 +1,18 @@
 // === Config ===
 const SYMBOL_TYPES = [
-  { glyph: '\u273F', name: 'Anemone',   color: '#ff6b9d' },
-  { glyph: '\u2605', name: 'Starfish',  color: '#ffa654' },
-  { glyph: '\u25C6', name: 'Crystal',   color: '#54d4ff' },
-  { glyph: '\u25B2', name: 'Fin',       color: '#7dff54' },
-  { glyph: '\u25CF', name: 'Pearl',     color: '#e8e8ff' },
-  { glyph: '\u2B1F', name: 'Shell',     color: '#ffde54' },
-  { glyph: '\u2726', name: 'Urchin',    color: '#d154ff' },
-  { glyph: '\u26A1', name: 'Eel',       color: '#54ffcc' },
-  { glyph: '\u263D', name: 'Moonjelly', color: '#8899ff' },
+  { glyph: '\u273F', name: 'Anemone',    color: '#ff6b9d' },
+  { glyph: '\u2605', name: 'Seestern',  color: '#ffa654' },
+  { glyph: '\u25C6', name: 'Kristall',  color: '#54d4ff' },
+  { glyph: '\u25B2', name: 'Flosse',    color: '#7dff54' },
+  { glyph: '\u25CF', name: 'Perle',     color: '#e8e8ff' },
+  { glyph: '\u2B1F', name: 'Muschel',   color: '#ffde54' },
+  { glyph: '\u2726', name: 'Seeigel',   color: '#d154ff' },
+  { glyph: '\u26A1', name: 'Aal',       color: '#54ffcc' },
+  { glyph: '\u263D', name: 'Mondqualle', color: '#8899ff' },
 ];
 
 const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
-const PLAYER_NAMES = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+const PLAYER_NAMES = ['Spieler 1', 'Spieler 2', 'Spieler 3', 'Spieler 4'];
 const RINGS = 9;
 const SLOTS = 9;
 const ACTIVE_PER_TYPE = 2;
@@ -90,6 +90,8 @@ function createNewGame() {
     symbols,
     activeSymbols: generateActiveSymbols(symbols, 1),
     players,
+    completedSymbols: [],
+    removedItems: [],
     history: [],
   };
 
@@ -100,9 +102,10 @@ function createNewGame() {
 
 function generateActiveSymbols(symbols, phase) {
   const active = {};
+  const minType = (phase - 1) * TYPES_PER_PHASE;
   const maxType = phase * TYPES_PER_PHASE;
   for (let type = 0; type < 9; type++) {
-    if (type < maxType) {
+    if (type >= minType && type < maxType) {
       const ofType = symbols.filter(s => s.type === type);
       const picked = shuffle(ofType).slice(0, ACTIVE_PER_TYPE);
       active[type] = picked.map(s => s.id);
@@ -120,6 +123,8 @@ function nextRound() {
     phase: state.phase,
     activeSymbols: deepCopy(state.activeSymbols),
     players: deepCopy(state.players),
+    completedSymbols: [...state.completedSymbols],
+    removedItems: [...state.removedItems],
   });
   state.round++;
   state.activeSymbols = generateActiveSymbols(state.symbols, state.phase);
@@ -134,6 +139,8 @@ function undo() {
   state.phase = prev.phase;
   state.activeSymbols = prev.activeSymbols;
   state.players = prev.players;
+  state.completedSymbols = prev.completedSymbols;
+  state.removedItems = prev.removedItems;
   saveState();
   render();
 }
@@ -145,7 +152,27 @@ function advancePhase() {
     phase: state.phase,
     activeSymbols: deepCopy(state.activeSymbols),
     players: deepCopy(state.players),
+    completedSymbols: [...state.completedSymbols],
+    removedItems: [...state.removedItems],
   });
+
+  // Find symbols completed this phase (player on active symbol with matching item)
+  const completedItemTypes = new Set();
+  state.symbols.forEach(sym => {
+    if (isActive(sym.id) && isMatched(sym)) {
+      state.completedSymbols.push(sym.id);
+      completedItemTypes.add(sym.type);
+    }
+  });
+
+  // Remove completed items from players and mark as removed
+  completedItemTypes.forEach(type => {
+    state.removedItems.push(type);
+    state.players.forEach(p => {
+      p.items = p.items.filter(i => i !== type);
+    });
+  });
+
   state.phase++;
   state.activeSymbols = generateActiveSymbols(state.symbols, state.phase);
   saveState();
@@ -186,6 +213,8 @@ function loadState() {
     if (saved) {
       state = JSON.parse(saved);
       if (!state.phase) state.phase = 1;
+      if (!state.completedSymbols) state.completedSymbols = [];
+      if (!state.removedItems) state.removedItems = [];
       return true;
     }
   } catch (e) { /* fall through */ }
@@ -194,7 +223,13 @@ function loadState() {
 
 // === Active set helpers ===
 function isUnlocked(symbolType) {
-  return symbolType < state.phase * TYPES_PER_PHASE;
+  const minType = (state.phase - 1) * TYPES_PER_PHASE;
+  const maxType = state.phase * TYPES_PER_PHASE;
+  return symbolType >= minType && symbolType < maxType;
+}
+
+function isCompleted(symbolId) {
+  return state.completedSymbols.includes(symbolId);
 }
 
 function isActive(symbolId) {
@@ -218,17 +253,22 @@ function isMatched(symbol) {
 function render() {
   const chamber = document.getElementById('chamber');
   const chamberSize = chamber.offsetWidth;
-  chamber.innerHTML = '<div class="chamber-void"></div>';
+  chamber.innerHTML = '<div class="chamber-void"></div>' +
+    '<svg class="distance-overlay" id="distanceOverlay"></svg>' +
+    '<div class="distance-label" id="distanceLabel"></div>';
 
   // Render symbols
   state.symbols.forEach(sym => {
     const pos = computePosition(sym.ring, sym.slot, chamberSize);
     const el = document.createElement('span');
     el.className = 'symbol';
+    const completed = isCompleted(sym.id);
     const unlocked = isUnlocked(sym.type);
     const active = unlocked && isActive(sym.id);
     const matched = isMatched(sym);
-    if (!unlocked) {
+    if (completed) {
+      el.classList.add('completed');
+    } else if (!unlocked) {
       el.classList.add('locked');
     } else {
       el.classList.add(active ? 'active' : 'inactive');
@@ -252,7 +292,8 @@ function render() {
     // Tooltip
     el.addEventListener('mouseenter', (e) => {
       const tooltip = document.getElementById('tooltip');
-      tooltip.textContent = `${SYMBOL_TYPES[sym.type].name} (Ring ${sym.ring + 1}, Slot ${sym.slot + 1})${active ? ' \u2014 ACTIVE' : ''}`;
+      const statusText = completed ? ' \u2014 ABGESCHLOSSEN' : (active ? ' \u2014 AKTIV' : '');
+      tooltip.textContent = `${SYMBOL_TYPES[sym.type].name} (Ring ${sym.ring + 1}, Platz ${sym.slot + 1})${statusText}`;
       tooltip.style.display = 'block';
       tooltip.style.left = (e.clientX + 12) + 'px';
       tooltip.style.top = (e.clientY - 8) + 'px';
@@ -332,7 +373,7 @@ function renderPlayerList() {
         chip.className = 'item-chip on-player';
         chip.style.color = SYMBOL_TYPES[typeIdx].color;
         chip.textContent = SYMBOL_TYPES[typeIdx].glyph + ' ' + SYMBOL_TYPES[typeIdx].name;
-        chip.title = 'Click to unassign';
+        chip.title = 'Klicken zum Entfernen';
         chip.addEventListener('click', (e) => {
           e.stopPropagation();
           assignItem(typeIdx, null);
@@ -350,15 +391,16 @@ function renderUnassignedItems() {
   const container = document.getElementById('unassignedItems');
   container.innerHTML = '';
   const assigned = new Set(state.players.flatMap(p => p.items));
+  const removed = new Set(state.removedItems || []);
   SYMBOL_TYPES.forEach((st, idx) => {
-    if (assigned.has(idx)) return;
+    if (assigned.has(idx) || removed.has(idx)) return;
     const chip = document.createElement('span');
     chip.className = 'item-chip';
     chip.style.color = st.color;
     chip.textContent = st.glyph + ' ' + st.name;
     chip.title = selectedPlayerId !== null
-      ? `Click to give to ${state.players[selectedPlayerId].name}`
-      : 'Select a player first';
+      ? `Klicken, um an ${state.players[selectedPlayerId].name} zu geben`
+      : 'Zuerst einen Spieler ausw\u00E4hlen';
     chip.addEventListener('click', () => {
       if (selectedPlayerId !== null) {
         assignItem(idx, selectedPlayerId);
@@ -382,12 +424,103 @@ function renderLegend() {
     name.textContent = st.name;
     const count = document.createElement('span');
     count.className = 'legend-count';
-    const activeCount = (state.activeSymbols[idx] || []).length;
-    count.textContent = `${activeCount} active`;
+    const isRemoved = (state.removedItems || []).includes(idx);
+    if (isRemoved) {
+      count.textContent = 'abgeschlossen';
+      count.style.color = '#7dff54';
+    } else {
+      const activeCount = (state.activeSymbols[idx] || []).length;
+      count.textContent = `${activeCount} aktiv`;
+    }
     row.appendChild(glyph);
     row.appendChild(name);
     row.appendChild(count);
     container.appendChild(row);
+  });
+}
+
+// === Geometry Helpers ===
+function lineIntersectsCircle(x1, y1, x2, y2, cx, cy, r) {
+  // Check if line segment from (x1,y1) to (x2,y2) intersects circle at (cx,cy) with radius r
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const fx = x1 - cx;
+  const fy = y1 - cy;
+  const a = dx * dx + dy * dy;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - r * r;
+  let discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return false;
+  discriminant = Math.sqrt(discriminant);
+  const t1 = (-b - discriminant) / (2 * a);
+  const t2 = (-b + discriminant) / (2 * a);
+  return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1);
+}
+
+// === Distance Line ===
+const SPHERE_DIAMETER_M = 100;
+
+function setupDistanceTracking() {
+  const chamber = document.getElementById('chamber');
+
+  chamber.addEventListener('mousemove', (e) => {
+    const overlay = document.getElementById('distanceOverlay');
+    const label = document.getElementById('distanceLabel');
+    if (selectedPlayerId === null || !state) {
+      overlay.innerHTML = '';
+      label.style.display = 'none';
+      return;
+    }
+
+    const rect = chamber.getBoundingClientRect();
+    const chamberSize = rect.width;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const cx = chamberSize / 2;
+    const cy = chamberSize / 2;
+    const radius = chamberSize / 2;
+
+    // Check if mouse is within the sphere
+    const distFromCenter = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
+    if (distFromCenter > radius) {
+      overlay.innerHTML = '';
+      label.style.display = 'none';
+      return;
+    }
+
+    const player = state.players[selectedPlayerId];
+    const playerPos = computePosition(player.ring, player.slot, chamberSize);
+
+    // Pixel distance
+    const dx = mx - playerPos.x;
+    const dy = my - playerPos.y;
+    const pixelDist = Math.sqrt(dx * dx + dy * dy);
+
+    // Convert to meters (chamber diameter in pixels = SPHERE_DIAMETER_M meters)
+    const meters = (pixelDist / chamberSize) * SPHERE_DIAMETER_M;
+
+    // Check if line crosses the central void (15% radius = 30% diameter div)
+    const voidRadius = chamberSize * 0.15;
+    const crossesVoid = lineIntersectsCircle(playerPos.x, playerPos.y, mx, my, cx, cy, voidRadius);
+
+    const lineClass = crossesVoid ? 'class="illegal"' : '';
+    const strokeColor = crossesVoid ? '#ff4444' : player.color;
+
+    overlay.innerHTML = `<line ${lineClass} x1="${playerPos.x}" y1="${playerPos.y}" x2="${mx}" y2="${my}"
+      stroke="${strokeColor}" stroke-width="2" stroke-dasharray="6,4" stroke-opacity="0.7"/>`;
+
+    label.style.display = 'block';
+    label.style.left = mx + 'px';
+    label.style.top = my + 'px';
+    label.style.borderColor = crossesVoid ? '#ff4444' : player.color;
+    label.textContent = crossesVoid ? `${meters.toFixed(1)}m \u2014 BLOCKIERT` : `${meters.toFixed(1)}m`;
+  });
+
+  chamber.addEventListener('mouseleave', () => {
+    const overlay = document.getElementById('distanceOverlay');
+    const label = document.getElementById('distanceLabel');
+    overlay.innerHTML = '';
+    label.style.display = 'none';
   });
 }
 
@@ -396,7 +529,7 @@ document.getElementById('btnNextRound').addEventListener('click', nextRound);
 document.getElementById('btnAdvancePhase').addEventListener('click', advancePhase);
 document.getElementById('btnUndo').addEventListener('click', undo);
 document.getElementById('btnNewGame').addEventListener('click', () => {
-  if (state.round > 0 && !confirm('Start a new game? Current progress will be lost.')) return;
+  if (state.round > 0 && !confirm('Neues Spiel starten? Der aktuelle Fortschritt geht verloren.')) return;
   createNewGame();
 });
 
@@ -404,6 +537,8 @@ document.getElementById('btnNewGame').addEventListener('click', () => {
 window.addEventListener('resize', () => {
   if (state) render();
 });
+
+setupDistanceTracking();
 
 // === Init ===
 if (!loadState()) {

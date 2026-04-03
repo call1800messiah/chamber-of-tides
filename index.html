@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chamber of Tides</title>
+<title>Kammer der Gezeiten</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <div class="header">
-  <h1>Chamber of Tides</h1>
-  <div class="round-display">Phase <span id="phaseNum">1</span>/3 &mdash; Round <span id="roundNum">0</span></div>
+  <h1>Kammer der Gezeiten</h1>
+  <div class="round-display">Phase <span id="phaseNum">1</span>/3 &mdash; Runde <span id="roundNum">0</span></div>
 </div>
 
 <div class="main">
@@ -22,29 +22,29 @@
 
   <div class="sidebar">
     <div>
-      <div class="section-title">Controls</div>
+      <div class="section-title">Steuerung</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        <button class="btn btn-primary" id="btnNextRound">Next Round</button>
-        <button class="btn btn-primary" id="btnAdvancePhase">Advance Ritual Phase</button>
+        <button class="btn btn-primary" id="btnNextRound">N&auml;chste Runde</button>
+        <button class="btn btn-primary" id="btnAdvancePhase">Ritualphase voranschreiten</button>
         <div class="btn-row">
-          <button class="btn" id="btnUndo" disabled>Undo</button>
-          <button class="btn" id="btnNewGame">New Game</button>
+          <button class="btn" id="btnUndo" disabled>R&uuml;ckg&auml;ngig</button>
+          <button class="btn" id="btnNewGame">Neues Spiel</button>
         </div>
       </div>
     </div>
 
     <div>
-      <div class="section-title">Players <span style="font-size:0.65rem;opacity:0.6;">(click to select, then click chamber to move)</span></div>
+      <div class="section-title">Spieler <span style="font-size:0.65rem;opacity:0.6;">(anklicken, dann Ziel in der Kammer w&auml;hlen)</span></div>
       <div id="playerList" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
 
     <div>
-      <div class="section-title">Unassigned Items <span style="font-size:0.65rem;opacity:0.6;">(click to give to selected player)</span></div>
+      <div class="section-title">Verf&uuml;gbare Gegenst&auml;nde <span style="font-size:0.65rem;opacity:0.6;">(anklicken, um sie dem gew&auml;hlten Spieler zu geben)</span></div>
       <div class="unassigned-items" id="unassignedItems"></div>
     </div>
 
     <div>
-      <div class="section-title">Legend</div>
+      <div class="section-title">Legende</div>
       <div id="legend"></div>
     </div>
   </div>
