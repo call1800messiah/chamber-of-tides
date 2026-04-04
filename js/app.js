@@ -22,6 +22,7 @@ const MAX_PHASES = 3;
 // === State ===
 let state = null;
 let selectedPlayerId = null;
+let selectedItemId = null;
 const blockedZones = new Set();
 
 // === Utility ===
@@ -91,12 +92,14 @@ function createNewGame() {
     symbols,
     activeSymbols: generateActiveSymbols(symbols, 1),
     players,
+    itemPositions: {},
     completedSymbols: [],
     removedItems: [],
     history: [],
   };
 
   selectedPlayerId = null;
+  selectedItemId = null;
   document.getElementById('ritualOverlay').classList.remove('visible');
   saveState();
   render();
@@ -125,6 +128,7 @@ function nextRound() {
     phase: state.phase,
     activeSymbols: deepCopy(state.activeSymbols),
     players: deepCopy(state.players),
+    itemPositions: deepCopy(state.itemPositions),
     completedSymbols: [...state.completedSymbols],
     removedItems: [...state.removedItems],
   });
@@ -141,6 +145,7 @@ function undo() {
   state.phase = prev.phase;
   state.activeSymbols = prev.activeSymbols;
   state.players = prev.players;
+  state.itemPositions = prev.itemPositions || {};
   state.completedSymbols = prev.completedSymbols;
   state.removedItems = prev.removedItems;
   state.ritualComplete = prev.ritualComplete || false;
@@ -160,6 +165,7 @@ function advancePhase() {
     phase: state.phase,
     activeSymbols: deepCopy(state.activeSymbols),
     players: deepCopy(state.players),
+    itemPositions: deepCopy(state.itemPositions),
     completedSymbols: [...state.completedSymbols],
     removedItems: [...state.removedItems],
   });
@@ -194,6 +200,7 @@ function completeRitual() {
     phase: state.phase,
     activeSymbols: deepCopy(state.activeSymbols),
     players: deepCopy(state.players),
+    itemPositions: deepCopy(state.itemPositions),
     completedSymbols: [...state.completedSymbols],
     removedItems: [...state.removedItems],
     ritualComplete: state.ritualComplete || false,
@@ -227,7 +234,16 @@ function assignItem(typeIndex, playerId) {
   if (playerId !== null) {
     state.players[playerId].items.push(typeIndex);
     state.players[playerId].items.sort((a, b) => a - b);
+    // Remove board position when picked up by a player
+    delete state.itemPositions[typeIndex];
   }
+  saveState();
+  render();
+}
+
+function moveItem(typeIndex, ring, slot) {
+  state.itemPositions[typeIndex] = { ring, slot };
+  selectedItemId = null;
   saveState();
   render();
 }
@@ -247,6 +263,7 @@ function loadState() {
       if (!state.phase) state.phase = 1;
       if (!state.completedSymbols) state.completedSymbols = [];
       if (!state.removedItems) state.removedItems = [];
+      if (!state.itemPositions) state.itemPositions = {};
       return true;
     }
   } catch (e) { /* fall through */ }
@@ -339,10 +356,12 @@ function render() {
       el.style.textShadow = `0 0 8px ${SYMBOL_TYPES[sym.type].color}`;
     }
 
-    // Click to move selected player here
+    // Click to move selected player or item here
     el.addEventListener('click', () => {
       if (selectedPlayerId !== null) {
         movePlayer(selectedPlayerId, sym.ring, sym.slot);
+      } else if (selectedItemId !== null) {
+        moveItem(selectedItemId, sym.ring, sym.slot);
       }
     });
 
@@ -367,9 +386,20 @@ function render() {
     chamber.appendChild(el);
   });
 
+  // Collect all tokens at each position for offset calculation
+  const tokensByPos = {};
+  const addToken = (ring, slot, key) => {
+    const k = ring + ',' + slot;
+    if (!tokensByPos[k]) tokensByPos[k] = [];
+    const idx = tokensByPos[k].length;
+    tokensByPos[k].push(key);
+    return idx;
+  };
+
   // Render player tokens
   state.players.forEach(p => {
     const pos = computePosition(p.ring, p.slot, chamberSize);
+    const tokenIdx = addToken(p.ring, p.slot, 'p' + p.id);
     const el = document.createElement('div');
     el.className = 'player-token';
     el.textContent = (p.id + 1);
@@ -377,11 +407,30 @@ function render() {
     el.style.left = pos.x + 'px';
     el.style.top = pos.y + 'px';
     el.style.boxShadow = `0 0 8px ${p.color}88`;
-    // Offset slightly so multiple players at same position don't fully overlap
-    const offset = state.players.filter(pp => pp.ring === p.ring && pp.slot === p.slot && pp.id < p.id).length;
-    if (offset > 0) {
-      el.style.transform = `translate(calc(-50% + ${offset * 14}px), calc(-50% - 14px))`;
-    }
+    // Offset from symbol center; spread tokens around it
+    const angle = (tokenIdx * (360 / 6)) * Math.PI / 180;
+    const offsetDist = 18;
+    el.style.transform = `translate(calc(-50% + ${Math.cos(angle) * offsetDist}px), calc(-50% + ${Math.sin(angle) * offsetDist}px))`;
+    chamber.appendChild(el);
+  });
+
+  // Render item tokens on the board
+  Object.entries(state.itemPositions || {}).forEach(([typeIdx, pos]) => {
+    typeIdx = parseInt(typeIdx);
+    if ((state.removedItems || []).includes(typeIdx)) return;
+    const st = SYMBOL_TYPES[typeIdx];
+    const coords = computePosition(pos.ring, pos.slot, chamberSize);
+    const tokenIdx = addToken(pos.ring, pos.slot, 'i' + typeIdx);
+    const el = document.createElement('div');
+    el.className = 'item-token';
+    el.textContent = st.glyph;
+    el.style.backgroundColor = st.color;
+    el.style.left = coords.x + 'px';
+    el.style.top = coords.y + 'px';
+    const angle = (tokenIdx * (360 / 6)) * Math.PI / 180;
+    const offsetDist = 18;
+    el.style.transform = `translate(calc(-50% + ${Math.cos(angle) * offsetDist}px), calc(-50% + ${Math.sin(angle) * offsetDist}px))`;
+    el.style.boxShadow = `0 0 8px ${st.color}88`;
     chamber.appendChild(el);
   });
 
@@ -416,7 +465,9 @@ function renderPlayerList() {
     card.className = 'player-card' + (selectedPlayerId === p.id ? ' selected' : '');
     card.addEventListener('click', () => {
       selectedPlayerId = selectedPlayerId === p.id ? null : p.id;
+      selectedItemId = null;
       renderPlayerList();
+      renderUnassignedItems();
     });
 
     const header = document.createElement('div');
@@ -462,14 +513,24 @@ function renderUnassignedItems() {
     if (assigned.has(idx) || removed.has(idx)) return;
     const chip = document.createElement('span');
     chip.className = 'item-chip';
+    if (selectedItemId === idx) chip.classList.add('selected');
     chip.style.color = st.color;
     chip.textContent = st.glyph + ' ' + st.name;
-    chip.title = selectedPlayerId !== null
-      ? `Klicken, um an ${state.players[selectedPlayerId].name} zu geben`
-      : 'Zuerst einen Spieler ausw\u00E4hlen';
+    const hasPosition = state.itemPositions && state.itemPositions[idx];
+    if (selectedPlayerId !== null) {
+      chip.title = `Klicken, um an ${state.players[selectedPlayerId].name} zu geben`;
+    } else {
+      chip.title = 'Klicken, um auf der Kammer zu platzieren';
+    }
     chip.addEventListener('click', () => {
       if (selectedPlayerId !== null) {
         assignItem(idx, selectedPlayerId);
+      } else {
+        // Toggle item selection for board placement
+        selectedItemId = selectedItemId === idx ? null : idx;
+        selectedPlayerId = null;
+        renderUnassignedItems();
+        renderPlayerList();
       }
     });
     container.appendChild(chip);
