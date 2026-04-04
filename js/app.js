@@ -241,6 +241,18 @@ function assignItem(typeIndex, playerId) {
   render();
 }
 
+function toggleSymbolActive(sym) {
+  const ids = state.activeSymbols[sym.type];
+  const idx = ids.indexOf(sym.id);
+  if (idx >= 0) {
+    ids.splice(idx, 1);
+  } else {
+    ids.push(sym.id);
+  }
+  saveState();
+  render();
+}
+
 function moveItem(typeIndex, ring, slot) {
   state.itemPositions[typeIndex] = { ring, slot };
   selectedItemId = null;
@@ -356,12 +368,14 @@ function render() {
       el.style.textShadow = `0 0 8px ${SYMBOL_TYPES[sym.type].color}`;
     }
 
-    // Click to move selected player or item here
+    // Click to move selected player/item here, or toggle activation
     el.addEventListener('click', () => {
       if (selectedPlayerId !== null) {
         movePlayer(selectedPlayerId, sym.ring, sym.slot);
       } else if (selectedItemId !== null) {
         moveItem(selectedItemId, sym.ring, sym.slot);
+      } else if (unlocked && !completed) {
+        toggleSymbolActive(sym);
       }
     });
 
