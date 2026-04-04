@@ -92,6 +92,66 @@ body {
     inset 0 0 80px rgba(0, 0, 0, 0.4);
 }
 
+/* Water flow overlay */
+.chamber-flow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  background: conic-gradient(
+    from 0deg,
+    rgba(84, 212, 255, 0.0) 0deg,
+    rgba(84, 212, 255, 0.07) 60deg,
+    rgba(84, 255, 204, 0.12) 120deg,
+    rgba(84, 212, 255, 0.07) 180deg,
+    rgba(84, 212, 255, 0.0) 240deg,
+    rgba(84, 255, 204, 0.07) 300deg,
+    rgba(84, 212, 255, 0.0) 360deg
+  );
+}
+.chamber-flow.active {
+  opacity: 1;
+  animation: flow-rotate 20s linear infinite;
+}
+.chamber-flow.active.reverse {
+  animation: flow-rotate-reverse 20s linear infinite;
+}
+@keyframes flow-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes flow-rotate-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+/* Blocked zone overlays */
+.chamber-zone {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(255, 60, 60, 0.15);
+  pointer-events: none;
+  z-index: 3;
+  display: none;
+  transition: opacity 0.3s ease;
+}
+.chamber-zone.active { display: block; }
+.chamber-zone.zone-nw { clip-path: polygon(0 0, 50% 0, 50% 50%, 0 50%); }
+.chamber-zone.zone-ne { clip-path: polygon(50% 0, 100% 0, 100% 50%, 50% 50%); }
+.chamber-zone.zone-sw { clip-path: polygon(0 50%, 50% 50%, 50% 100%, 0 100%); }
+.chamber-zone.zone-se { clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%); }
+
+.btn-zone { text-align: center !important; font-weight: 600; }
+.btn-zone.active {
+  background: rgba(255, 60, 60, 0.25);
+  border-color: rgba(255, 60, 60, 0.5);
+  color: #ff6b6b;
+}
+
 /* Center void */
 .chamber-void {
   position: absolute;

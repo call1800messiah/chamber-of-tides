@@ -22,6 +22,7 @@ const MAX_PHASES = 3;
 // === State ===
 let state = null;
 let selectedPlayerId = null;
+const blockedZones = new Set();
 
 // === Utility ===
 function shuffle(arr) {
@@ -299,7 +300,17 @@ function isMatched(symbol) {
 function render() {
   const chamber = document.getElementById('chamber');
   const chamberSize = chamber.offsetWidth;
-  chamber.innerHTML = '<div class="chamber-void"></div>' +
+  const flowEl = document.getElementById('chamberFlow');
+  const flowActive = flowEl?.classList.contains('active') || false;
+  const flowReverse = flowEl?.classList.contains('reverse') || false;
+  const flowClasses = 'chamber-flow' + (flowActive ? ' active' : '') + (flowReverse ? ' reverse' : '');
+  const zoneHtml = ['nw','ne','sw','se'].map(z =>
+    '<div class="chamber-zone zone-' + z + (blockedZones.has(z) ? ' active' : '') + '" id="zone-' + z + '"></div>'
+  ).join('');
+  chamber.innerHTML =
+    '<div class="' + flowClasses + '" id="chamberFlow"></div>' +
+    zoneHtml +
+    '<div class="chamber-void"></div>' +
     '<svg class="distance-overlay" id="distanceOverlay"></svg>' +
     '<div class="distance-label" id="distanceLabel"></div>';
 
@@ -512,6 +523,29 @@ function lineIntersectsCircle(x1, y1, x2, y2, cx, cy, r) {
   return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1);
 }
 
+function getQuadrant(x, y, cx, cy) {
+  if (x < cx && y < cy) return 'nw';
+  if (x >= cx && y < cy) return 'ne';
+  if (x < cx && y >= cy) return 'sw';
+  return 'se';
+}
+
+function lineCrossesBlockedZone(x1, y1, x2, y2, cx, cy, radius) {
+  if (blockedZones.size === 0) return false;
+  // Sample points along the line and check if any fall within a blocked quadrant inside the sphere
+  const steps = 40;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const px = x1 + (x2 - x1) * t;
+    const py = y1 + (y2 - y1) * t;
+    const dist = Math.sqrt((px - cx) ** 2 + (py - cy) ** 2);
+    if (dist <= radius && blockedZones.has(getQuadrant(px, py, cx, cy))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // === Distance Line ===
 const SPHERE_DIAMETER_M = 100;
 
@@ -557,9 +591,11 @@ function setupDistanceTracking() {
     // Check if line crosses the central void (15% radius = 30% diameter div)
     const voidRadius = chamberSize * 0.15;
     const crossesVoid = lineIntersectsCircle(playerPos.x, playerPos.y, mx, my, cx, cy, voidRadius);
+    const crossesZone = lineCrossesBlockedZone(playerPos.x, playerPos.y, mx, my, cx, cy, radius);
+    const blocked = crossesVoid || crossesZone;
 
-    const lineClass = crossesVoid ? 'class="illegal"' : '';
-    const strokeColor = crossesVoid ? '#ff4444' : player.color;
+    const lineClass = blocked ? 'class="illegal"' : '';
+    const strokeColor = blocked ? '#ff4444' : player.color;
 
     overlay.innerHTML = `<line ${lineClass} x1="${playerPos.x}" y1="${playerPos.y}" x2="${mx}" y2="${my}"
       stroke="${strokeColor}" stroke-width="2" stroke-dasharray="6,4" stroke-opacity="0.7"/>`;
@@ -567,8 +603,8 @@ function setupDistanceTracking() {
     label.style.display = 'block';
     label.style.left = mx + 'px';
     label.style.top = my + 'px';
-    label.style.borderColor = crossesVoid ? '#ff4444' : player.color;
-    label.textContent = crossesVoid ? `${meters.toFixed(1)}m \u2014 BLOCKIERT` : `${meters.toFixed(1)}m`;
+    label.style.borderColor = blocked ? '#ff4444' : player.color;
+    label.textContent = blocked ? `${meters.toFixed(1)}m \u2014 BLOCKIERT` : `${meters.toFixed(1)}m`;
   });
 
   chamber.addEventListener('mouseleave', () => {
@@ -583,6 +619,32 @@ function setupDistanceTracking() {
 document.getElementById('btnNextRound').addEventListener('click', nextRound);
 document.getElementById('btnAdvancePhase').addEventListener('click', advancePhase);
 document.getElementById('btnUndo').addEventListener('click', undo);
+document.getElementById('btnToggleFlow').addEventListener('click', () => {
+  const flow = document.getElementById('chamberFlow');
+  const btn = document.getElementById('btnToggleFlow');
+  flow.classList.toggle('active');
+  btn.textContent = flow.classList.contains('active') ? 'Str\u00F6mung ausblenden' : 'Str\u00F6mung anzeigen';
+});
+document.getElementById('btnReverseFlow').addEventListener('click', () => {
+  const flow = document.getElementById('chamberFlow');
+  const btn = document.getElementById('btnReverseFlow');
+  flow.classList.toggle('reverse');
+  btn.innerHTML = flow.classList.contains('reverse') ? '\u21BA Gegenuhrzeigersinn' : '\u21BB Uhrzeigersinn';
+});
+document.querySelectorAll('.btn-zone').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const zone = btn.dataset.zone;
+    if (blockedZones.has(zone)) {
+      blockedZones.delete(zone);
+      btn.classList.remove('active');
+    } else {
+      blockedZones.add(zone);
+      btn.classList.add('active');
+    }
+    const zoneEl = document.getElementById('zone-' + zone);
+    if (zoneEl) zoneEl.classList.toggle('active', blockedZones.has(zone));
+  });
+});
 document.getElementById('btnNewGame').addEventListener('click', () => {
   if (state.round > 0 && !confirm('Neues Spiel starten? Der aktuelle Fortschritt geht verloren.')) return;
   createNewGame();
