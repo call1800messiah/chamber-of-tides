@@ -12,7 +12,7 @@ const SYMBOL_TYPES = [
 ];
 
 const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
-const PLAYER_NAMES = ['Spieler 1', 'Spieler 2', 'Spieler 3', 'Spieler 4'];
+const PLAYER_NAMES = ['Raskorda', 'Beleman', 'Descoba', 'Fang'];
 const RINGS = 9;
 const SLOTS = 9;
 const ACTIVE_PER_TYPE = 2;
@@ -298,11 +298,7 @@ function isPhaseComplete() {
   const maxType = state.phase * TYPES_PER_PHASE;
   for (let type = minType; type < maxType; type++) {
     const activeIds = state.activeSymbols[type] || [];
-    const matched = activeIds.some(id => {
-      const sym = state.symbols[id];
-      const player = playerAtPosition(sym.ring, sym.slot);
-      return player && player.items.includes(sym.type);
-    });
+    const matched = activeIds.some(id => isMatched(state.symbols[id]));
     if (!matched) return false;
   }
   return true;
@@ -321,8 +317,7 @@ function playerAtPosition(ring, slot) {
 
 function isMatched(symbol) {
   if (!isActive(symbol.id)) return false;
-  const player = playerAtPosition(symbol.ring, symbol.slot);
-  return player && player.items.includes(symbol.type);
+  return state.players.some(p => p.ring === symbol.ring && p.slot === symbol.slot && p.items.includes(symbol.type));
 }
 
 // === Rendering ===
@@ -416,7 +411,7 @@ function render() {
     const tokenIdx = addToken(p.ring, p.slot, 'p' + p.id);
     const el = document.createElement('div');
     el.className = 'player-token';
-    el.textContent = (p.id + 1);
+    el.textContent = (p.name.slice(0,1));
     el.style.backgroundColor = p.color;
     el.style.left = pos.x + 'px';
     el.style.top = pos.y + 'px';
